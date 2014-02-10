@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Owin;
 using Microsoft.Owin.Testing;
 using Nancy;
+using Nancy.Bootstrapper;
+using Nancy.ErrorHandling;
 using Owin;
 using Xunit;
 using HttpStatusCode = System.Net.HttpStatusCode;
@@ -18,7 +22,10 @@ namespace NancyOwinException
             using (TestServer testServer = TestServer.Create<Startup>())
             {
                 HttpResponseMessage response = await testServer.CreateRequest("/").GetAsync();
+                string body = await response.Content.ReadAsStringAsync();
+
                 Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+                Assert.Equal("Derp!", body);
             }
         }
     }
@@ -48,7 +55,9 @@ namespace NancyOwinException
             catch (Exception ex)
             {
                 //Stupid? yes, but we can't reach here.
-                context.Response.StatusCode = 404; 
+                context.Response.StatusCode = 404;
+                byte[] bytes = Encoding.UTF8.GetBytes(ex.Message);
+                context.Response.Body.Write(bytes, 0, bytes.Length);
             }
         }
     }
@@ -58,6 +67,41 @@ namespace NancyOwinException
         public MyModule()
         {
             Get["/"] = _ => { throw new Exception("Derp!"); };
+        }
+    }
+
+    public class MyBootstrapper : DefaultNancyBootstrapper
+    {
+        protected override NancyInternalConfiguration InternalConfiguration
+        {
+            get
+            {
+                return NancyInternalConfiguration.WithOverrides(config =>
+                    config.StatusCodeHandlers = new[] {typeof (RethrowStatusCodeHandler)});
+            }
+        }
+    }
+
+    public class RethrowStatusCodeHandler : IStatusCodeHandler
+    {
+        public bool HandlesStatusCode(Nancy.HttpStatusCode statusCode, NancyContext context)
+        {
+            if (!context.Items.ContainsKey(NancyEngine.ERROR_EXCEPTION))
+            {
+                return false;
+            }
+
+            var exception = context.Items[NancyEngine.ERROR_EXCEPTION] as Exception;
+
+            return statusCode == Nancy.HttpStatusCode.InternalServerError && exception != null;
+        }
+
+        public void Handle(Nancy.HttpStatusCode statusCode, NancyContext context)
+        {
+            Exception innerException = ((Exception) context.Items[NancyEngine.ERROR_EXCEPTION]).InnerException;
+            ExceptionDispatchInfo
+                .Capture(innerException)
+                .Throw();
         }
     }
 }
