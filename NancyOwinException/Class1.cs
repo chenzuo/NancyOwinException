@@ -54,7 +54,7 @@ namespace NancyOwinException
             }
             catch (Exception ex)
             {
-                //Stupid? yes, but we can't reach here.
+                //Stupid? yes. It's just an example.
                 context.Response.StatusCode = 404;
                 byte[] bytes = Encoding.UTF8.GetBytes(ex.Message);
                 context.Response.Body.Write(bytes, 0, bytes.Length);
