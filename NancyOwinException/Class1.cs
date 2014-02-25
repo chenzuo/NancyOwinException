@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Microsoft.Owin;
 using Microsoft.Owin.Testing;
 using Nancy;
-using Nancy.Bootstrapper;
 using Nancy.ErrorHandling;
 using Owin;
 using Xunit;
@@ -67,18 +66,6 @@ namespace NancyOwinException
         public MyModule()
         {
             Get["/"] = _ => { throw new Exception("Derp!"); };
-        }
-    }
-
-    public class MyBootstrapper : DefaultNancyBootstrapper
-    {
-        protected override NancyInternalConfiguration InternalConfiguration
-        {
-            get
-            {
-                return NancyInternalConfiguration.WithOverrides(config =>
-                    config.StatusCodeHandlers = new[] {typeof (RethrowStatusCodeHandler)});
-            }
         }
     }
 
